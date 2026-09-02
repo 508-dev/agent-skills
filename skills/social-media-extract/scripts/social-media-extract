@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if ! command -v uv >/dev/null 2>&1; then
+  printf '%s\n' 'social-media-extract requires uv: https://docs.astral.sh/uv/' >&2
+  exit 127
+fi
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+runtime_dir="${script_dir}/../runtime"
+
+exec uv run --locked --project "${runtime_dir}" \
+  python "${script_dir}/social_media_extract.py" "$@"

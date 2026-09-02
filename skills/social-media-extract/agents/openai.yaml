@@ -1,0 +1,7 @@
+interface:
+  display_name: "Social Media Extract"
+  short_description: "Turn supported social posts into Maps links"
+  default_prompt: "Use $social-media-extract to find places in this public Instagram post or Facebook Reel."
+
+policy:
+  allow_implicit_invocation: true

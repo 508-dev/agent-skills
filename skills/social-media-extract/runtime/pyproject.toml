@@ -1,0 +1,13 @@
+[project]
+name = "social-media-extract-runtime"
+version = "1.0.0"
+requires-python = ">=3.10"
+dependencies = [
+  "curl_cffi==0.16.2",
+  "playwright==1.54.0",
+]
+
+[tool.uv]
+# Keep dependency releases at least seven days old when the lock is refreshed.
+# The committed lock, rather than this moving cutoff, governs installations.
+exclude-newer = "2026-08-26T00:00:00Z"
