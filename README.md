@@ -16,9 +16,34 @@ If your runtime has a skill-discovery directory, copy or symlink the skill
 there. Otherwise, provide the agent with the absolute skill directory and tell
 it to follow the directory's `SKILL.md` for matching requests.
 
+### Ask Your Agent to Install It
+
+Paste this into an agent that can manage its own skills:
+
+```text
+Install the `social-media-extract` skill from https://github.com/508-dev/agent-skills.
+
+Use your normal skill-installation mechanism if you have one. Otherwise, clone
+or download the repository and install or link `skills/social-media-extract`
+in your configured user-level skill directory. Preserve the bundled executable
+scripts, load its `SKILL.md` for public Instagram post/Reel and Facebook Reel
+URL requests, and use `scripts/social-media-extract` as the launcher. The
+runtime needs Python 3.10+ and uv.
+
+Never ask me for passwords, cookies, session exports, 2FA codes, or CAPTCHA
+solutions. Tell me the installed path and whether I need to restart or reload
+you.
+```
+
+For a manual installation, replace the example path below with your runtime's
+configured skill-discovery directory:
+
 ```sh
+# Set this to your agent runtime's skill-discovery directory.
+AGENT_SKILLS_DIR=/path/to/your/agent/skills
 git clone https://github.com/508-dev/agent-skills.git
-cp -R agent-skills/skills/social-media-extract <agent-skill-dir>/
+mkdir -p "$AGENT_SKILLS_DIR"
+cp -R agent-skills/skills/social-media-extract "$AGENT_SKILLS_DIR/"
 ```
 
 Reload the agent's skills after installing. The optional
@@ -47,10 +72,10 @@ Start a new Codex turn after installing so it discovers the skill.
 
 The skill handles public `instagram.com/p/...`, `instagram.com/reel/...`, and
 `facebook.com/reel/...` URLs. Its launcher uses `uv run --locked`, so the first
-use installs the reviewed, locked Python runtime; later uses reuse it.
+use installs the reviewed, locked Python runtime; subsequent uses reuse it.
 
 ```sh
-SKILL_DIR="<agent-skill-dir>/social-media-extract"
+SKILL_DIR="${AGENT_SKILLS_DIR}/social-media-extract"
 "$SKILL_DIR/scripts/social-media-extract" --json --scrape-only \
   'https://www.instagram.com/reel/EXAMPLE/'
 ```
