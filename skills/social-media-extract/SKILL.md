@@ -10,6 +10,11 @@ Use this skill when the user supplies a public Instagram post/Reel or Facebook
 Reel and wants the places, venues, or locations mentioned in it. Do not use it
 for profiles, Stories, feeds, private messages, or broad place discovery.
 
+This folder is framework-neutral: an agent only needs to load this `SKILL.md`,
+resolve the bundled launcher relative to the folder, and have terminal access.
+`agents/openai.yaml` is optional OpenAI UI metadata and does not affect the
+extractor's runtime behavior.
+
 ## Run the Extractor
 
 Resolve the directory that contains this `SKILL.md`, then invoke the bundled
