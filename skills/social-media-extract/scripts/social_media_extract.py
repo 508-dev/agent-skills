@@ -37,7 +37,9 @@ INSTAGRAM_HOSTS = {"instagram.com", "www.instagram.com", "instagr.am", "www.inst
 FACEBOOK_HOSTS = {"facebook.com", "www.facebook.com", "m.facebook.com", "web.facebook.com"}
 SOCIAL_MEDIA_HOSTS = {"instagram.com", "cdninstagram.com", "facebook.com", "fbcdn.net"}
 INSTAGRAM_KINDS = {"p", "reel", "reels"}
-FACEBOOK_KINDS = {"reel", "reels"}
+FACEBOOK_REEL_KINDS = {"reel", "reels"}
+FACEBOOK_POST_KIND = "posts"
+FACEBOOK_SHARE_KIND = "share"
 SUPPORTED_PLATFORMS = {"facebook", "instagram"}
 LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "::1"}
 MAX_HTML_BYTES = 8 * 1024 * 1024
@@ -263,40 +265,79 @@ def normalize_instagram_url(value: str) -> InstagramTarget:
 
 
 def normalize_facebook_url(value: str) -> InstagramTarget:
-    """Validate a public Facebook Reel URL without accepting profile/feed URLs."""
+    """Validate a public Facebook Reel, post, or share link without accepting feeds."""
 
     raw = value.strip()
     if not raw:
-        raise InstagramToMapsError("A Facebook Reel URL is required.")
+        raise InstagramToMapsError("A Facebook URL is required.")
     if "://" not in raw:
         raw = f"https://{raw}"
 
     parsed = urlparse(raw)
     hostname = (parsed.hostname or "").lower()
     if hostname not in FACEBOOK_HOSTS:
-        raise InstagramToMapsError("Only public facebook.com Reel URLs are supported.")
+        raise InstagramToMapsError("Only public facebook.com post, Reel, and share URLs are supported.")
 
     segments = [segment for segment in parsed.path.split("/") if segment]
+
+    if len(segments) == 2 and segments[0].lower() == FACEBOOK_SHARE_KIND:
+        share_id = segments[1]
+        if not re.fullmatch(r"[A-Za-z0-9_-]{4,}", share_id):
+            raise InstagramToMapsError("The Facebook share URL does not contain a valid share ID.")
+        canonical_url = f"https://www.facebook.com/share/{share_id}/"
+        return InstagramTarget(
+            platform="facebook",
+            original_url=value,
+            shortcode=share_id,
+            kind="share",
+            canonical_url=canonical_url,
+            candidate_urls=tuple(unique((canonical_url, raw))),
+        )
+
     kind_index: int | None = None
     for index, segment in enumerate(segments[:-1]):
-        if segment.lower() in FACEBOOK_KINDS:
+        if segment.lower() in FACEBOOK_REEL_KINDS:
             kind_index = index
             break
-    if kind_index is None:
-        raise InstagramToMapsError("Use a Facebook Reel (/reel/<id>) URL.")
+    if kind_index is not None:
+        reel_id = segments[kind_index + 1]
+        if not re.fullmatch(r"[A-Za-z0-9_-]{4,}", reel_id):
+            raise InstagramToMapsError("The Facebook Reel URL does not contain a valid Reel ID.")
 
-    reel_id = segments[kind_index + 1]
-    if not re.fullmatch(r"[A-Za-z0-9_-]{4,}", reel_id):
-        raise InstagramToMapsError("The Facebook Reel URL does not contain a valid Reel ID.")
+        canonical_url = f"https://www.facebook.com/reel/{reel_id}"
+        return InstagramTarget(
+            platform="facebook",
+            original_url=value,
+            shortcode=reel_id,
+            kind="reel",
+            canonical_url=canonical_url,
+            candidate_urls=tuple(unique((canonical_url, raw))),
+        )
 
-    canonical_url = f"https://www.facebook.com/reel/{reel_id}"
-    return InstagramTarget(
-        platform="facebook",
-        original_url=value,
-        shortcode=reel_id,
-        kind="reel",
-        canonical_url=canonical_url,
-        candidate_urls=tuple(unique((canonical_url, raw))),
+    post_index = next(
+        (index for index, segment in enumerate(segments) if segment.lower() == FACEBOOK_POST_KIND),
+        None,
+    )
+    if post_index == 1 and len(segments) >= 3:
+        profile = segments[0]
+        post_id = segments[-1]
+        if not re.fullmatch(r"[A-Za-z0-9._-]{1,100}", profile):
+            raise InstagramToMapsError("The Facebook post URL does not contain a valid profile path.")
+        if not re.fullmatch(r"(?:\d{6,}|pfbid[A-Za-z0-9_-]{8,})", post_id):
+            raise InstagramToMapsError("The Facebook post URL does not contain a valid post ID.")
+
+        canonical_url = f"https://www.facebook.com/{'/'.join(segments)}/"
+        return InstagramTarget(
+            platform="facebook",
+            original_url=value,
+            shortcode=post_id,
+            kind="post",
+            canonical_url=canonical_url,
+            candidate_urls=tuple(unique((canonical_url, raw))),
+        )
+
+    raise InstagramToMapsError(
+        "Use a Facebook Reel (/reel/<id>), post (/<profile>/posts/<id>), or share (/share/<id>) URL."
     )
 
 
@@ -311,7 +352,7 @@ def normalize_social_url(value: str) -> InstagramTarget:
     if hostname in FACEBOOK_HOSTS:
         return normalize_facebook_url(value)
     raise InstagramToMapsError(
-        "Only public Instagram posts/Reels and facebook.com Reel URLs are supported."
+        "Only public Instagram posts/Reels and facebook.com post, Reel, and share URLs are supported."
     )
 
 
@@ -846,8 +887,10 @@ def facebook_caption_and_author(value: str | None) -> tuple[str | None, str | No
     if not value:
         return None, None
     result = html.unescape(value).strip()
+    engagement_prefix = r"^[^|\n]{0,100}\bviews?\s*·\s*[^|\n]{0,100}\breactions?\s*\|\s*"
+    has_engagement_prefix = bool(re.search(engagement_prefix, result, flags=re.IGNORECASE))
     result = re.sub(
-        r"^[^|\n]{0,100}\bviews?\s*·\s*[^|\n]{0,100}\breactions?\s*\|\s*",
+        engagement_prefix,
         "",
         result,
         flags=re.IGNORECASE,
@@ -857,6 +900,11 @@ def facebook_caption_and_author(value: str | None) -> tuple[str | None, str | No
     if trailing:
         author = trailing.group(1).strip() or None
         result = result[: trailing.start()].rstrip()
+    elif not has_engagement_prefix and "|" not in result and "\n" not in result:
+        # Standard photo/text posts expose the author's name as og:title and
+        # place the actual post text in og:description.
+        author = result or None
+        result = ""
     result = result.strip(" \t\r\n\"'")
     return result or None, author
 
@@ -1148,14 +1196,18 @@ def parse_instagram_html(html_text: str, target: InstagramTarget) -> ScrapedPost
 
 
 def parse_facebook_html(html_text: str, target: InstagramTarget) -> ScrapedPost:
-    """Parse the public OG and embedded media surfaces exposed for a Facebook Reel."""
+    """Parse public Open Graph and media surfaces for a Facebook post or Reel."""
 
     parser = InstagramHtmlParser()
     parser.feed(html_text)
     parser.close()
 
     og_title = parser.meta.get("og:title") or parser.meta.get("twitter:title")
-    og_description = parser.meta.get("og:description") or parser.meta.get("twitter:description")
+    og_description = (
+        parser.meta.get("og:description")
+        or parser.meta.get("twitter:description")
+        or parser.meta.get("description")
+    )
     caption, author = facebook_caption_and_author(og_title)
     if not caption:
         caption = clean_caption(og_description)
@@ -1170,6 +1222,7 @@ def parse_facebook_html(html_text: str, target: InstagramTarget) -> ScrapedPost:
     blocked = not has_metadata and any(pattern in lower_html for pattern in FACEBOOK_BLOCKED_PATTERNS)
 
     image_urls = [thumbnail_url] if is_http_url(thumbnail_url) else []
+    content_type = "video" if target.kind == "reel" or is_http_url(video_url) else "image" if image_urls else "post"
     return ScrapedPost(
         source_url=target.canonical_url,
         shortcode=target.shortcode,
@@ -1179,7 +1232,7 @@ def parse_facebook_html(html_text: str, target: InstagramTarget) -> ScrapedPost:
         thumbnail_url=thumbnail_url if is_http_url(thumbnail_url) else None,
         image_urls=image_urls,
         video_url=video_url if is_http_url(video_url) else None,
-        content_type="video",
+        content_type=content_type,
         blocked=blocked,
     )
 
@@ -1258,14 +1311,14 @@ def scrape_social(
             if post.blocked or post.age_restricted or is_usable_post(post):
                 return post
             best_partial = post
-            failures.append(f"{candidate_url}: returned no Reel metadata")
+            failures.append(f"{candidate_url}: returned no Facebook post metadata")
         except InstagramToMapsError as error:
             failures.append(str(error))
 
     if best_partial:
         best_partial.diagnostics.extend(failures)
         return best_partial
-    raise InstagramToMapsError("; ".join(failures) or "Facebook returned no usable Reel metadata.")
+    raise InstagramToMapsError("; ".join(failures) or "Facebook returned no usable post metadata.")
 
 
 def download_binary(
@@ -2190,11 +2243,11 @@ def render_result(result: dict[str, Any]) -> str:
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Extract Instagram posts/Reels and Facebook Reels into Google Maps search links "
+            "Extract Instagram posts/Reels and Facebook posts/Reels into Google Maps search links "
             "without Google Places."
         ),
     )
-    parser.add_argument("urls", nargs="*", help="Instagram post/Reel or Facebook Reel URLs")
+    parser.add_argument("urls", nargs="*", help="Instagram post/Reel or Facebook post, Reel, or share URLs")
     parser.add_argument(
         "--login",
         nargs="?",
@@ -2238,7 +2291,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     if args.login and args.urls:
         parser.error("--login does not accept post URLs.")
     if not args.login and not args.urls:
-        parser.error("Provide a supported social post/Reel URL, or use --login [PLATFORM].")
+        parser.error("Provide a supported Instagram or Facebook post/Reel URL, or use --login [PLATFORM].")
     if args.timeout < 1 or args.timeout > 300:
         parser.error("--timeout must be between 1 and 300 seconds.")
     if not 1 <= args.max_images <= 12:

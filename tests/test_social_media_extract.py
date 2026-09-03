@@ -45,18 +45,29 @@ class SocialMediaExtractPackageTests(unittest.TestCase):
         self.assertTrue((SKILL_DIR / "runtime/uv.lock").is_file())
         self.assertTrue((SKILL_DIR / "runtime/requirements.lock").is_file())
 
-    def test_normalizes_supported_instagram_and_facebook_reels(self) -> None:
+    def test_normalizes_supported_instagram_and_facebook_targets(self) -> None:
         instagram = self.command.normalize_social_url(
             "https://www.instagram.com/someone/reels/C0de_Test/?utm_source=ig"
         )
-        facebook = self.command.normalize_social_url(
+        facebook_reel = self.command.normalize_social_url(
             "https://m.facebook.com/reel/897621193261763?mibextid=abc"
         )
+        facebook_post = self.command.normalize_social_url(
+            "https://www.facebook.com/jwang815/posts/10118723421345343/?comment_id=1"
+        )
+        facebook_share = self.command.normalize_social_url("https://www.facebook.com/share/Abcd_1234/")
 
         self.assertEqual(instagram.platform, "instagram")
         self.assertEqual(instagram.canonical_url, "https://www.instagram.com/reel/C0de_Test/")
-        self.assertEqual(facebook.platform, "facebook")
-        self.assertEqual(facebook.canonical_url, "https://www.facebook.com/reel/897621193261763")
+        self.assertEqual(facebook_reel.platform, "facebook")
+        self.assertEqual(facebook_reel.canonical_url, "https://www.facebook.com/reel/897621193261763")
+        self.assertEqual(facebook_post.kind, "post")
+        self.assertEqual(
+            facebook_post.canonical_url,
+            "https://www.facebook.com/jwang815/posts/10118723421345343/",
+        )
+        self.assertEqual(facebook_share.kind, "share")
+        self.assertEqual(facebook_share.canonical_url, "https://www.facebook.com/share/Abcd_1234/")
 
     def test_parses_public_facebook_caption_and_media(self) -> None:
         target = self.command.normalize_social_url("https://www.facebook.com/reel/897621193261763")
@@ -74,6 +85,23 @@ class SocialMediaExtractPackageTests(unittest.TestCase):
         self.assertEqual(post.username, "Mr.Tokyo")
         self.assertEqual(post.thumbnail_url, "https://scontent.xx.fbcdn.net/cover.jpg")
         self.assertEqual(post.video_url, video_url)
+
+    def test_parses_public_facebook_post_description_and_image(self) -> None:
+        target = self.command.normalize_social_url(
+            "https://www.facebook.com/jwang815/posts/10118723421345343/"
+        )
+        source = (
+            '<meta property="og:title" content="Jason Wang">'
+            '<meta property="og:description" content="[Japan - Kyoto] Noodle Shop Rennosuke (麺屋 練之助).">'
+            '<meta property="og:image" content="https://scontent.xx.fbcdn.net/cover.jpg">'
+        )
+
+        post = self.command.parse_social_html(source, target)
+
+        self.assertEqual(post.username, "Jason Wang")
+        self.assertEqual(post.caption, "[Japan - Kyoto] Noodle Shop Rennosuke (麺屋 練之助).")
+        self.assertEqual(post.image_urls, ["https://scontent.xx.fbcdn.net/cover.jpg"])
+        self.assertEqual(post.content_type, "image")
 
     def test_maps_urls_are_deterministic_search_links(self) -> None:
         post = self.command.ScrapedPost(

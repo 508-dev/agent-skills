@@ -26,9 +26,9 @@ Install the `social-media-extract` skill from https://github.com/508-dev/agent-s
 Use your normal skill-installation mechanism if you have one. Otherwise, clone
 or download the repository and install or link `skills/social-media-extract`
 in your configured user-level skill directory. Preserve the bundled executable
-scripts, load its `SKILL.md` for public Instagram post/Reel and Facebook Reel
-URL requests, and use `scripts/social-media-extract` as the launcher. The
-runtime needs Python 3.10+ and uv.
+scripts, load its `SKILL.md` for public Instagram post/Reel and Facebook
+post/Reel or share-link requests, and use `scripts/social-media-extract` as
+the launcher. The runtime needs Python 3.10+ and uv.
 
 Never ask me for passwords, cookies, session exports, 2FA codes, or CAPTCHA
 solutions. Tell me the installed path and whether I need to restart or reload
@@ -66,13 +66,15 @@ Start a new Codex turn after installing so it discovers the skill.
 
 | Skill | Use it for |
 | --- | --- |
-| [`social-media-extract`](skills/social-media-extract/) | Extracting evidence-backed places from public Instagram posts/Reels and Facebook Reels, with Google Maps search links. |
+| [`social-media-extract`](skills/social-media-extract/) | Extracting evidence-backed places from public Instagram posts/Reels and Facebook posts/Reels or share links, with Google Maps search links. |
 
 ## Social Media Extract
 
-The skill handles public `instagram.com/p/...`, `instagram.com/reel/...`, and
-`facebook.com/reel/...` URLs. Its launcher uses `uv run --locked`, so the first
-use installs the reviewed, locked Python runtime; subsequent uses reuse it.
+The skill handles public `instagram.com/p/...`, `instagram.com/reel/...`,
+`facebook.com/reel/...`, `facebook.com/<profile>/posts/...`, and
+`facebook.com/share/...` URLs. A share link must resolve to public content. Its
+launcher uses `uv run --locked`, so the first use installs the reviewed, locked
+Python runtime; subsequent uses reuse it.
 
 ```sh
 SKILL_DIR="${AGENT_SKILLS_DIR}/social-media-extract"

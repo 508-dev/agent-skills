@@ -1,14 +1,16 @@
 ---
 name: social-media-extract
-description: Extract places from public Instagram posts/Reels and Facebook Reels when a user provides a supported post URL; not for profiles, feeds, or private content.
+description: Extract places from public Instagram posts/Reels and Facebook posts/Reels or share links; not for profiles, feeds, or private content.
 license: MIT
 ---
 
 # Social Media Extract
 
-Use this skill when the user supplies a public Instagram post/Reel or Facebook
-Reel and wants the places, venues, or locations mentioned in it. Do not use it
-for profiles, Stories, feeds, private messages, or broad place discovery.
+Use this skill when the user supplies a public Instagram post/Reel, Facebook
+post/Reel, or Facebook share link and wants the places, venues, or locations
+mentioned in it. Do not use it for profiles, Stories, feeds, private messages,
+or broad place discovery. A Facebook share link must resolve publicly; do not
+attempt to bypass a login wall or other source restriction.
 
 This folder is framework-neutral: an agent only needs to load this `SKILL.md`,
 resolve the bundled launcher relative to the folder, and have terminal access.
